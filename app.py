@@ -15,18 +15,24 @@ def home():
 def webhook():
     data = request.get_json()
 
-    # Check for genre from Watson Assistant
-    genre = None
+    # Try to extract genre, mood, and age from Watson Assistant context
+    genre = mood = age = None
     try:
-        genre = data['context']['skills']['main skill']['user_defined'].get('genre')
+        user_defined = data['context']['skills']['main skill']['user_defined']
+        genre = user_defined.get('genre')
+        mood = user_defined.get('mood')
+        age = user_defined.get('age')
     except Exception:
         pass
 
-    if genre:
-        books = get_books_by_genre(genre)
-        response_text = f"Here are some popular {genre} books:\n" + books
+    if genre or mood or age:
+        books = get_books_recommendation(genre, mood, age)
+        response_text = f"Here are some books based on your preferences:\n{books}"
     else:
-        response_text = "Please tell me what genre you're interested in, like fantasy or mystery!"
+        response_text = (
+            "Please tell me your preferences! You can mention a genre (e.g., mystery), "
+            "a mood (e.g., uplifting), or an age group (e.g., teens)."
+        )
 
     return jsonify({
         "output": {
@@ -39,18 +45,30 @@ def webhook():
         }
     })
 
-def get_books_by_genre(genre):
+def get_books_recommendation(genre=None, mood=None, age=None):
+    # Build the search query using any available filters
+    query_parts = []
+    if genre:
+        query_parts.append(f"subject:{genre}")
+    if mood:
+        query_parts.append(mood)
+    if age:
+        query_parts.append(age)
+
+    query = " ".join(query_parts) or "books"
+
     params = {
-        "q": f"subject:{genre}",
+        "q": query,
         "maxResults": 5,
         "printType": "books",
         "langRestrict": "en"
     }
+
     try:
         response = requests.get(GOOGLE_BOOKS_API_URL, params=params)
         items = response.json().get("items", [])
         if not items:
-            return "Sorry, I couldn't find any books in that genre."
+            return "😕 Sorry, I couldn't find any matching books."
 
         book_list = []
         for item in items:
@@ -60,8 +78,8 @@ def get_books_by_genre(genre):
             book_list.append(f"📘 {title} by {authors}")
 
         return "\n".join(book_list)
-    except Exception as e:
-        return "Oops! Something went wrong while fetching books."
+    except Exception:
+        return "❌ Oops! Something went wrong while fetching books."
 
 if __name__ == "__main__":
     app.run(debug=True)
