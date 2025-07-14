@@ -15,21 +15,25 @@ def home():
 def webhook():
     data = request.get_json()
 
-    # Log incoming request for debugging
+    # Log incoming data
     print("🔥 Incoming request data:")
     print(data)
 
-    # Extract user-defined context values from Watson
+    # Extract user-defined values
     genre = mood = age_group = None
     try:
-        user_defined = data['context']['skills']['main skill']['user_defined']
-        genre = user_defined.get('genre')
-        mood = user_defined.get('mood')
-        age_group = user_defined.get('age_group')  # ✅ fixed key
+        user_defined = data["context"]["skills"]["main skill"]["user_defined"]
+        genre = user_defined.get("genre")
+        mood = user_defined.get("mood")
+        age_group = user_defined.get("age_group")
     except Exception as e:
-        print("⚠️ Error extracting slot values:", e)
+        print("⚠️ Error extracting context values:", e)
 
-    # Get book recommendations if any input is present
+    print("✅ Extracted slot values:")
+    print("Genre:", genre)
+    print("Mood:", mood)
+    print("Age group:", age_group)
+
     if genre or mood or age_group:
         books = get_books_recommendation(genre, mood, age_group)
         response_text = f"Here are some books based on your preferences:\n{books}"
@@ -39,7 +43,6 @@ def webhook():
             "a mood (e.g., uplifting), or an age group (e.g., teens)."
         )
 
-    # Return Watson-compatible JSON
     return jsonify({
         "output": {
             "generic": [
@@ -52,7 +55,6 @@ def webhook():
     })
 
 def get_books_recommendation(genre=None, mood=None, age_group=None):
-    # Build query string using available filters
     query_parts = []
     if genre:
         query_parts.append(f"subject:{genre}")
@@ -80,14 +82,14 @@ def get_books_recommendation(genre=None, mood=None, age_group=None):
 
         book_list = []
         for item in items:
-            volume_info = item.get("volumeInfo", {})
-            title = volume_info.get("title", "Unknown Title")
-            authors = ", ".join(volume_info.get("authors", ["Unknown Author"]))
+            info = item.get("volumeInfo", {})
+            title = info.get("title", "Unknown Title")
+            authors = ", ".join(info.get("authors", ["Unknown Author"]))
             book_list.append(f"📘 {title} by {authors}")
 
         return "\n".join(book_list)
     except Exception as e:
-        print("❌ Error fetching from Google Books API:", e)
+        print("❌ Error fetching books:", e)
         return "❌ Oops! Something went wrong while fetching books."
 
 if __name__ == "__main__":
