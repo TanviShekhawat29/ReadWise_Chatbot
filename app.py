@@ -15,18 +15,23 @@ def home():
 def webhook():
     data = request.get_json()
 
-    # Try to extract genre, mood, and age from Watson Assistant context
-    genre = mood = age = None
+    # Log incoming request for debugging
+    print("🔥 Incoming request data:")
+    print(data)
+
+    # Extract user-defined context values from Watson
+    genre = mood = age_group = None
     try:
         user_defined = data['context']['skills']['main skill']['user_defined']
         genre = user_defined.get('genre')
         mood = user_defined.get('mood')
-        age = user_defined.get('age')
-    except Exception:
-        pass
+        age_group = user_defined.get('age_group')  # ✅ fixed key
+    except Exception as e:
+        print("⚠️ Error extracting slot values:", e)
 
-    if genre or mood or age:
-        books = get_books_recommendation(genre, mood, age)
+    # Get book recommendations if any input is present
+    if genre or mood or age_group:
+        books = get_books_recommendation(genre, mood, age_group)
         response_text = f"Here are some books based on your preferences:\n{books}"
     else:
         response_text = (
@@ -34,6 +39,7 @@ def webhook():
             "a mood (e.g., uplifting), or an age group (e.g., teens)."
         )
 
+    # Return Watson-compatible JSON
     return jsonify({
         "output": {
             "generic": [
@@ -45,17 +51,18 @@ def webhook():
         }
     })
 
-def get_books_recommendation(genre=None, mood=None, age=None):
-    # Build the search query using any available filters
+def get_books_recommendation(genre=None, mood=None, age_group=None):
+    # Build query string using available filters
     query_parts = []
     if genre:
         query_parts.append(f"subject:{genre}")
     if mood:
         query_parts.append(mood)
-    if age:
-        query_parts.append(age)
+    if age_group:
+        query_parts.append(age_group)
 
     query = " ".join(query_parts) or "books"
+    print(f"🔍 Google Books Query: {query}")
 
     params = {
         "q": query,
@@ -66,6 +73,7 @@ def get_books_recommendation(genre=None, mood=None, age=None):
 
     try:
         response = requests.get(GOOGLE_BOOKS_API_URL, params=params)
+        response.raise_for_status()
         items = response.json().get("items", [])
         if not items:
             return "😕 Sorry, I couldn't find any matching books."
@@ -78,7 +86,8 @@ def get_books_recommendation(genre=None, mood=None, age=None):
             book_list.append(f"📘 {title} by {authors}")
 
         return "\n".join(book_list)
-    except Exception:
+    except Exception as e:
+        print("❌ Error fetching from Google Books API:", e)
         return "❌ Oops! Something went wrong while fetching books."
 
 if __name__ == "__main__":
